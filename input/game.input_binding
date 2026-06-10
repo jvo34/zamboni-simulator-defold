@@ -19,6 +19,14 @@ key_trigger {
   action: "restart_round"
 }
 key_trigger {
+  input: KEY_H
+  action: "go_home"
+}
+key_trigger {
+  input: KEY_N
+  action: "restart_session"
+}
+key_trigger {
   input: KEY_R
   action: "respawn"
 }

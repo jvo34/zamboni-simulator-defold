@@ -47,6 +47,8 @@ function on_message(self, message_id, message, sender)
         local popup_text = tostring(message.popup_text)
         popup_text = string.gsub(popup_text, "\r\n", "\n")
         popup_text = string.gsub(popup_text, "\n[Pp]ress Enter to play again", "")
+        popup_text = string.gsub(popup_text, "\n[Pp]ress N to play again", "")
+        popup_text = string.gsub(popup_text, "\n[Pp]ress N for home", "")
         gui.set_text(self.popup_text, popup_text)
     end
 end

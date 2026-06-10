@@ -76,7 +76,7 @@ local function create_scoreboard_ui(self)
     self.scoreboard.popup_panel = add_box(center_x, screen_h * 0.5, 560, 190, vmath.vector4(0.04, 0.06, 0.10, 0.90))
     self.scoreboard.popup_trim = add_box(center_x, (screen_h * 0.5) + 93, 560, 4, vmath.vector4(0.82, 0.12, 0.12, 0.95))
     self.scoreboard.popup_text = make_text_node(v3(center_x, (screen_h * 0.5) + 8), v3(500, 90, 0), "", text_color)
-    self.scoreboard.popup_hint = make_text_node(v3(center_x, (screen_h * 0.5) - 56), v3(460, 28, 0), "Press Enter to start a new game", vmath.vector4(0.76, 0.83, 0.94, 0.95))
+    self.scoreboard.popup_hint = make_text_node(v3(center_x, (screen_h * 0.5) - 56), v3(480, 28, 0), "Press Enter or N to restart, H for home", vmath.vector4(0.76, 0.83, 0.94, 0.95))
 
     gui.set_enabled(self.scoreboard.popup_panel, false)
     gui.set_enabled(self.scoreboard.popup_trim, false)
@@ -109,6 +109,8 @@ local function apply_hud_update(self, message)
         local popup_text = tostring(message.popup_text)
         popup_text = string.gsub(popup_text, "\r\n", "\n")
         popup_text = string.gsub(popup_text, "\n[Pp]ress Enter to play again", "")
+        popup_text = string.gsub(popup_text, "\n[Pp]ress N to play again", "")
+        popup_text = string.gsub(popup_text, "\n[Pp]ress N for home", "")
         gui.set_text(self.scoreboard.popup_text, popup_text)
     end
 end
