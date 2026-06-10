@@ -1,0 +1,18 @@
+[project]
+title = Zamboni Simulator
+version = 0.1.0
+
+[bootstrap]
+main_collection = /main/main.collection
+render = /builtins/render/default.render
+
+[input]
+game_binding = /input/game.input_binding
+
+[display]
+width = 1280
+height = 720
+high_dpi = 1
+
+[script]
+shared_state = 1

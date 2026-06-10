@@ -1,0 +1,40 @@
+key_trigger {
+  input: KEY_W
+  action: "throttle_forward"
+}
+key_trigger {
+  input: KEY_S
+  action: "throttle_reverse"
+}
+key_trigger {
+  input: KEY_A
+  action: "steer_left"
+}
+key_trigger {
+  input: KEY_D
+  action: "steer_right"
+}
+key_trigger {
+  input: KEY_ENTER
+  action: "restart_round"
+}
+key_trigger {
+  input: KEY_R
+  action: "respawn"
+}
+key_trigger {
+  input: KEY_UP
+  action: "throttle_forward"
+}
+key_trigger {
+  input: KEY_DOWN
+  action: "throttle_reverse"
+}
+key_trigger {
+  input: KEY_LEFT
+  action: "steer_left"
+}
+key_trigger {
+  input: KEY_RIGHT
+  action: "steer_right"
+}

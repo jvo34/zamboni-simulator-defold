@@ -1,0 +1,398 @@
+local C = require("config.game_constants")
+local ZAMBONI_GUI_URL = "/zamboni_ui#zamboni_gui"
+local RINK_GUI_URL = "/rink_ui#rink_gui"
+
+local function send_pose(pos, rot)
+    msg.post(ZAMBONI_GUI_URL, "zamboni_pose", { position = pos, rotation = rot })
+    msg.post(RINK_GUI_URL, "zamboni_pose", { position = pos, rotation = rot })
+end
+
+local function clear_input(self)
+    self.input.forward = 0
+    self.input.reverse = 0
+    self.input.left = 0
+    self.input.right = 0
+end
+
+local function move_towards(value, target, max_delta)
+    if value < target then
+        return math.min(value + max_delta, target)
+    end
+    return math.max(value - max_delta, target)
+end
+
+local function point_inside_rounded_rink(x, y, rink)
+    local hx = rink.width * 0.5
+    local hy = rink.height * 0.5
+    local r = rink.corner_radius
+
+    local lx = x - rink.center_x
+    local ly = y - rink.center_y
+
+    if math.abs(lx) > hx or math.abs(ly) > hy then
+        return false
+    end
+
+    local inner_x = hx - r
+    local inner_y = hy - r
+
+    if math.abs(lx) <= inner_x or math.abs(ly) <= inner_y then
+        return true
+    end
+
+    local corner_cx = (lx >= 0 and 1 or -1) * inner_x
+    local corner_cy = (ly >= 0 and 1 or -1) * inner_y
+    local dx = lx - corner_cx
+    local dy = ly - corner_cy
+
+    return (dx * dx) + (dy * dy) <= (r * r)
+end
+
+local function zamboni_inside_rink(pos, heading, constants)
+    local rink = constants.rink
+    local bounds_margin = constants.vehicle.bounds_margin or 1
+    local half_length = (constants.vehicle.bounds_half_length or 0) + bounds_margin
+    local half_width = (constants.vehicle.bounds_half_width or 0) + bounds_margin
+    local cos_h = math.cos(heading)
+    local sin_h = math.sin(heading)
+
+    local corners = {
+        vmath.vector3(half_length, half_width, 0),
+        vmath.vector3(half_length, -half_width, 0),
+        vmath.vector3(-half_length, half_width, 0),
+        vmath.vector3(-half_length, -half_width, 0),
+    }
+
+    for _, local_corner in ipairs(corners) do
+        local world_x = pos.x + (local_corner.x * cos_h) - (local_corner.y * sin_h)
+        local world_y = pos.y + (local_corner.x * sin_h) + (local_corner.y * cos_h)
+        if not point_inside_rounded_rink(world_x, world_y, rink) then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function get_corner_tangent_deltas(pos, delta_mag, constants)
+    local rink = constants.rink
+    local hx = rink.width * 0.5
+    local hy = rink.height * 0.5
+    local r = rink.corner_radius
+    local inner_x = hx - r
+    local inner_y = hy - r
+
+    local lx = pos.x - rink.center_x
+    local ly = pos.y - rink.center_y
+
+    if math.abs(lx) <= inner_x or math.abs(ly) <= inner_y then
+        return nil, nil
+    end
+
+    local sign_x = lx >= 0 and 1 or -1
+    local sign_y = ly >= 0 and 1 or -1
+    local corner_cx = rink.center_x + (sign_x * inner_x)
+    local corner_cy = rink.center_y + (sign_y * inner_y)
+
+    local rx = pos.x - corner_cx
+    local ry = pos.y - corner_cy
+    local len = math.sqrt((rx * rx) + (ry * ry))
+    if len <= 0.00001 then
+        return nil, nil
+    end
+
+    local nx = rx / len
+    local ny = ry / len
+
+    local tx1 = -ny
+    local ty1 = nx
+    local tx2 = ny
+    local ty2 = -nx
+
+    return vmath.vector3(tx1 * delta_mag, ty1 * delta_mag, 0), vmath.vector3(tx2 * delta_mag, ty2 * delta_mag, 0)
+end
+
+local function get_outward_wall_normal(pos, constants)
+    local rink = constants.rink
+    local hx = rink.width * 0.5
+    local hy = rink.height * 0.5
+    local r = rink.corner_radius
+    local inner_x = hx - r
+    local inner_y = hy - r
+
+    local lx = pos.x - rink.center_x
+    local ly = pos.y - rink.center_y
+    local abs_x = math.abs(lx)
+    local abs_y = math.abs(ly)
+
+    if abs_x > inner_x and abs_y <= inner_y then
+        return lx >= 0 and 1 or -1, 0
+    end
+
+    if abs_y > inner_y and abs_x <= inner_x then
+        return 0, ly >= 0 and 1 or -1
+    end
+
+    if abs_x > inner_x and abs_y > inner_y then
+        local sign_x = lx >= 0 and 1 or -1
+        local sign_y = ly >= 0 and 1 or -1
+        local corner_x = sign_x * inner_x
+        local corner_y = sign_y * inner_y
+        local nx = lx - corner_x
+        local ny = ly - corner_y
+        local len = math.sqrt((nx * nx) + (ny * ny))
+        if len > 0.00001 then
+            return nx / len, ny / len
+        end
+        return sign_x, sign_y
+    end
+
+    return 0, 0
+end
+
+local function sweep_to_rink(current_pos, move_delta, heading, constants)
+    if move_delta.x == 0 and move_delta.y == 0 then
+        return current_pos, 0.0, false
+    end
+
+    local target_pos = current_pos + move_delta
+    if zamboni_inside_rink(target_pos, heading, constants) then
+        return target_pos, 1.0, false
+    end
+
+    local low = 0.0
+    local high = 1.0
+    local best = current_pos
+    local best_t = 0.0
+
+    -- Sweep toward the target and keep the farthest valid point.
+    for _ = 1, 10 do
+        local t = (low + high) * 0.5
+        local test_pos = current_pos + move_delta * t
+        if zamboni_inside_rink(test_pos, heading, constants) then
+            best = test_pos
+            best_t = t
+            low = t
+        else
+            high = t
+        end
+    end
+
+    return vmath.vector3(best.x, best.y, current_pos.z), best_t, true
+end
+
+local function move_with_wall_slide(current_pos, desired_delta, heading, constants)
+    local swept_pos, swept_t, hit_wall = sweep_to_rink(current_pos, desired_delta, heading, constants)
+    if not hit_wall then
+        return swept_pos
+    end
+
+    local impact_nudge = constants.vehicle.impact_nudge or 0.35
+    local nx, ny = get_outward_wall_normal(swept_pos, constants)
+    local slide_origin = swept_pos
+    if impact_nudge > 0 and (nx ~= 0 or ny ~= 0) then
+        local nudged = vmath.vector3(
+            swept_pos.x - (nx * impact_nudge),
+            swept_pos.y - (ny * impact_nudge),
+            swept_pos.z
+        )
+        if zamboni_inside_rink(nudged, heading, constants) then
+            slide_origin = nudged
+        end
+    end
+
+    -- Use full intended motion projected onto wall tangent to avoid "micro-remaining" stick.
+    local projected = desired_delta
+    if nx ~= 0 or ny ~= 0 then
+        local into_wall = (desired_delta.x * nx) + (desired_delta.y * ny)
+        if into_wall > 0 then
+            projected = desired_delta - vmath.vector3(nx * into_wall, ny * into_wall, 0)
+        end
+    end
+
+    local slide_pos, _, _ = sweep_to_rink(slide_origin, projected, heading, constants)
+    local moved_x = slide_pos.x - slide_origin.x
+    local moved_y = slide_pos.y - slide_origin.y
+    local moved_sq = (moved_x * moved_x) + (moved_y * moved_y)
+    if moved_sq > 0.0001 then
+        return vmath.vector3(slide_pos.x, slide_pos.y, current_pos.z)
+    end
+
+    -- Corner fallback: force movement along corner tangent if projection still stalls.
+    local desired_mag = math.sqrt((desired_delta.x * desired_delta.x) + (desired_delta.y * desired_delta.y))
+    local t1, t2 = get_corner_tangent_deltas(slide_origin, desired_mag, constants)
+    if t1 and t2 then
+        local dot1 = (t1.x * desired_delta.x) + (t1.y * desired_delta.y)
+        local dot2 = (t2.x * desired_delta.x) + (t2.y * desired_delta.y)
+        local primary = dot1 >= dot2 and t1 or t2
+        local secondary = dot1 >= dot2 and t2 or t1
+
+        local c1, _, _ = sweep_to_rink(slide_origin, primary, heading, constants)
+        local c1dx = c1.x - slide_origin.x
+        local c1dy = c1.y - slide_origin.y
+        if (c1dx * c1dx) + (c1dy * c1dy) > 0.0001 then
+            return vmath.vector3(c1.x, c1.y, current_pos.z)
+        end
+
+        local c2, _, _ = sweep_to_rink(slide_origin, secondary, heading, constants)
+        local c2dx = c2.x - slide_origin.x
+        local c2dy = c2.y - slide_origin.y
+        if (c2dx * c2dx) + (c2dy * c2dy) > 0.0001 then
+            return vmath.vector3(c2.x, c2.y, current_pos.z)
+        end
+    end
+
+    -- Last resort: tiny inward nudge to break corner deadlocks.
+    local escape_nudge = constants.vehicle.corner_escape_nudge or 0
+    if escape_nudge > 0 then
+        local to_center_x = constants.rink.center_x - slide_origin.x
+        local to_center_y = constants.rink.center_y - slide_origin.y
+        local to_center_len = math.sqrt((to_center_x * to_center_x) + (to_center_y * to_center_y))
+        if to_center_len > 0.00001 then
+            local nx = to_center_x / to_center_len
+            local ny = to_center_y / to_center_len
+            local nudged = vmath.vector3(
+                slide_origin.x + (nx * escape_nudge),
+                slide_origin.y + (ny * escape_nudge),
+                current_pos.z
+            )
+            if zamboni_inside_rink(nudged, heading, constants) then
+                return nudged
+            end
+        end
+    end
+
+    return vmath.vector3(slide_origin.x, slide_origin.y, current_pos.z)
+end
+
+function init(self)
+    msg.post(".", "acquire_input_focus")
+
+    self.heading = 0.0
+    self.speed = 0.0
+
+    self.input = {
+        forward = 0,
+        reverse = 0,
+        left = 0,
+        right = 0,
+    }
+
+    self.round_active = true
+    self.start_pos = go.get_position()
+    self.start_rot = go.get_rotation()
+
+    local pos = go.get_position()
+    local rot = go.get_rotation()
+    send_pose(pos, rot)
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("throttle_forward") then
+        if action.pressed or action.repeated then
+            self.input.forward = 1
+        elseif action.released then
+            self.input.forward = 0
+        elseif action.value ~= nil then
+            self.input.forward = action.value > 0 and 1 or 0
+        end
+    elseif action_id == hash("throttle_reverse") then
+        if action.pressed or action.repeated then
+            self.input.reverse = 1
+        elseif action.released then
+            self.input.reverse = 0
+        elseif action.value ~= nil then
+            self.input.reverse = action.value > 0 and 1 or 0
+        end
+    elseif action_id == hash("steer_left") then
+        if action.pressed or action.repeated then
+            self.input.left = 1
+        elseif action.released then
+            self.input.left = 0
+        elseif action.value ~= nil then
+            self.input.left = action.value > 0 and 1 or 0
+        end
+    elseif action_id == hash("steer_right") then
+        if action.pressed or action.repeated then
+            self.input.right = 1
+        elseif action.released then
+            self.input.right = 0
+        elseif action.value ~= nil then
+            self.input.right = action.value > 0 and 1 or 0
+        end
+    end
+end
+
+function update(self, dt)
+    if not self.round_active then
+        self.speed = move_towards(self.speed, 0, C.vehicle.brake_accel * dt)
+        return
+    end
+
+    local throttle = self.input.forward - self.input.reverse
+    local steering = self.input.left - self.input.right
+
+    if throttle ~= 0 then
+        local accel = C.vehicle.acceleration
+        if self.speed * throttle < 0 then
+            accel = C.vehicle.brake_accel
+        end
+        self.speed = self.speed + throttle * accel * dt
+    else
+        self.speed = move_towards(self.speed, 0, C.vehicle.coast_decel * dt)
+    end
+
+    self.speed = math.min(self.speed, C.vehicle.max_forward_speed)
+    self.speed = math.max(self.speed, -C.vehicle.max_reverse_speed)
+
+    local speed_abs = math.abs(self.speed)
+    if steering ~= 0 then
+        local low_speed_turn_ratio = C.vehicle.low_speed_turn_ratio or 0.35
+        local speed_ratio = math.min(speed_abs / C.vehicle.max_forward_speed, 1.0)
+        speed_ratio = math.max(speed_ratio, low_speed_turn_ratio)
+        local direction_sign = self.speed >= 0 and 1 or -1
+        self.heading = self.heading + steering * C.vehicle.turn_speed * speed_ratio * direction_sign * dt
+    end
+
+    local current_pos = go.get_position()
+    local forward = vmath.vector3(math.cos(self.heading), math.sin(self.heading), 0)
+    local desired_delta = forward * self.speed * dt
+    local pos = move_with_wall_slide(current_pos, desired_delta, self.heading, C)
+
+    local rot = vmath.quat_rotation_z(self.heading)
+
+    go.set_position(pos)
+    go.set_rotation(rot)
+    send_pose(pos, rot)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("set_round_active") and message.active ~= nil then
+        self.round_active = message.active
+        if not self.round_active then
+            clear_input(self)
+        end
+        return
+    end
+
+    if message_id == hash("start_new_game") then
+        self.heading = 0.0
+        self.speed = 0.0
+        clear_input(self)
+        go.set_position(self.start_pos)
+        go.set_rotation(self.start_rot)
+        self.round_active = true
+        send_pose(self.start_pos, self.start_rot)
+    end
+
+    if message_id == hash("respawn") then
+        self.heading = 0.0
+        self.speed = 0.0
+        clear_input(self)
+        go.set_position(self.start_pos)
+        go.set_rotation(self.start_rot)
+        send_pose(self.start_pos, self.start_rot)
+    end
+end
+
+-- R key respawn handled via on_input forwarded from game_controller

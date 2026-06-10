@@ -1,0 +1,8 @@
+script: "/ui/rink.gui_script"
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_LEGACY
+max_nodes: 4096
+fonts {
+	name: "rink_font"
+	font: "/builtins/fonts/default.font"
+}

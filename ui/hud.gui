@@ -1,0 +1,440 @@
+script: "/ui/hud.gui_script"
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_LEGACY
+max_nodes: 256
+fonts {
+  name: "hud_font"
+  font: "/builtins/fonts/default.font"
+}
+nodes {
+  id: "scoreboard_panel"
+  type: TYPE_BOX
+  position {
+    x: 640.0
+    y: 636.0
+    z: 0.0
+  }
+  size {
+    x: 520.0
+    y: 64.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.06
+    y: 0.08
+    z: 0.12
+    w: 0.84
+  }
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+  clipping_mode: CLIPPING_MODE_NONE
+}
+nodes {
+  id: "scoreboard_panel_trim"
+  type: TYPE_BOX
+  position {
+    x: 640.0
+    y: 666.0
+    z: 0.0
+  }
+  size {
+    x: 520.0
+    y: 4.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.80
+    y: 0.10
+    z: 0.10
+    w: 0.95
+  }
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+  clipping_mode: CLIPPING_MODE_NONE
+}
+nodes {
+  id: "scoreboard_left_bar"
+  type: TYPE_BOX
+  position {
+    x: 388.0
+    y: 636.0
+    z: 0.0
+  }
+  size {
+    x: 6.0
+    y: 64.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.80
+    y: 0.10
+    z: 0.10
+    w: 0.95
+  }
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+  clipping_mode: CLIPPING_MODE_NONE
+}
+nodes {
+  id: "scoreboard_right_bar"
+  type: TYPE_BOX
+  position {
+    x: 892.0
+    y: 636.0
+    z: 0.0
+  }
+  size {
+    x: 6.0
+    y: 64.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.12
+    y: 0.35
+    z: 0.80
+    w: 0.95
+  }
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+  clipping_mode: CLIPPING_MODE_NONE
+}
+nodes {
+  id: "scoreboard_divider_left"
+  type: TYPE_BOX
+  position {
+    x: 565.0
+    y: 636.0
+    z: 0.0
+  }
+  size {
+    x: 2.0
+    y: 38.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.90
+    y: 0.92
+    z: 0.96
+    w: 0.32
+  }
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+  clipping_mode: CLIPPING_MODE_NONE
+}
+nodes {
+  id: "scoreboard_divider_right"
+  type: TYPE_BOX
+  position {
+    x: 715.0
+    y: 636.0
+    z: 0.0
+  }
+  size {
+    x: 2.0
+    y: 38.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.90
+    y: 0.92
+    z: 0.96
+    w: 0.32
+  }
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+  clipping_mode: CLIPPING_MODE_NONE
+}
+nodes {
+  id: "scoreboard_heading"
+  type: TYPE_TEXT
+  position {
+    x: 640.0
+    y: 656.0
+    z: 0.0
+  }
+  size {
+    x: 300.0
+    y: 20.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.96
+    y: 0.98
+    z: 1.0
+    w: 0.95
+  }
+  text: "ZAMBONI SIMULATOR"
+  font: "hud_font"
+  line_break: false
+  text_leading: 1.0
+  text_tracking: 0.0
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+}
+nodes {
+  id: "scoreboard_time"
+  type: TYPE_TEXT
+  position {
+    x: 490.0
+    y: 630.0
+    z: 0.0
+  }
+  size {
+    x: 150.0
+    y: 28.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.96
+    y: 0.98
+    z: 1.0
+    w: 1.0
+  }
+  text: "TIME: 60"
+  font: "hud_font"
+  line_break: false
+  text_leading: 1.0
+  text_tracking: 0.0
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+}
+nodes {
+  id: "scoreboard_clean"
+  type: TYPE_TEXT
+  position {
+    x: 640.0
+    y: 630.0
+    z: 0.0
+  }
+  size {
+    x: 170.0
+    y: 28.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.96
+    y: 0.98
+    z: 1.0
+    w: 1.0
+  }
+  text: "CLEANED: 0%"
+  font: "hud_font"
+  line_break: false
+  text_leading: 1.0
+  text_tracking: 0.0
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+}
+nodes {
+  id: "scoreboard_high"
+  type: TYPE_TEXT
+  position {
+    x: 790.0
+    y: 630.0
+    z: 0.0
+  }
+  size {
+    x: 170.0
+    y: 28.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.96
+    y: 0.98
+    z: 1.0
+    w: 1.0
+  }
+  text: "HIGH: 0%"
+  font: "hud_font"
+  line_break: false
+  text_leading: 1.0
+  text_tracking: 0.0
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+}
+nodes {
+  id: "popup_panel"
+  type: TYPE_BOX
+  position {
+    x: 640.0
+    y: 360.0
+    z: 0.0
+  }
+  size {
+    x: 520.0
+    y: 180.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.04
+    y: 0.06
+    z: 0.10
+    w: 0.90
+  }
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+  clipping_mode: CLIPPING_MODE_NONE
+}
+nodes {
+  id: "popup_trim"
+  type: TYPE_BOX
+  position {
+    x: 640.0
+    y: 446.0
+    z: 0.0
+  }
+  size {
+    x: 520.0
+    y: 4.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.80
+    y: 0.10
+    z: 0.10
+    w: 0.92
+  }
+  xanchor: XANCHOR_NONE
+  yanchor: YANCHOR_NONE
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+  clipping_mode: CLIPPING_MODE_NONE
+}
+nodes {
+  id: "popup_text"
+  type: TYPE_TEXT
+  position {
+    x: 640.0
+    y: 368.0
+    z: 0.0
+  }
+  size {
+    x: 470.0
+    y: 90.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.96
+    y: 0.98
+    z: 1.0
+    w: 1.0
+  }
+  text: "Good job! You cleaned the rink!"
+  font: "hud_font"
+  line_break: true
+  text_leading: 1.0
+  text_tracking: 0.0
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+}
+nodes {
+  id: "popup_hint"
+  type: TYPE_TEXT
+  position {
+    x: 640.0
+    y: 312.0
+    z: 0.0
+  }
+  size {
+    x: 420.0
+    y: 28.0
+    z: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  color {
+    x: 0.76
+    y: 0.83
+    z: 0.94
+    w: 0.92
+  }
+  text: "Press Enter to start a new game"
+  font: "hud_font"
+  line_break: false
+  text_leading: 1.0
+  text_tracking: 0.0
+  pivot: PIVOT_CENTER
+  blend_mode: BLEND_MODE_ALPHA
+}

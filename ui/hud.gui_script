@@ -1,0 +1,52 @@
+local function set_text(node_id, text)
+    gui.set_text(gui.get_node(node_id), text)
+end
+
+function init(self)
+    self.popup_panel = gui.get_node("popup_panel")
+    self.popup_trim = gui.get_node("popup_trim")
+    self.popup_text = gui.get_node("popup_text")
+    self.popup_hint = gui.get_node("popup_hint")
+    gui.set_enabled(self.popup_panel, false)
+    gui.set_enabled(self.popup_trim, false)
+    gui.set_enabled(self.popup_text, false)
+    gui.set_enabled(self.popup_hint, false)
+
+    set_text("scoreboard_time", "TIME: 0")
+    set_text("scoreboard_clean", "CLEANED: 0%")
+    set_text("scoreboard_high", "BEST: --")
+
+    print("[hud] scoreboard initialized")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id ~= hash("hud_update") then
+        return
+    end
+
+    local time_elapsed = math.max(0, math.floor((message.time_left or 0) + 0.5))
+    local cleaned = math.max(0, math.floor((message.clean_percent or 0) + 0.5))
+    local highscore_str = tostring(message.highscore or "--")
+
+    set_text("scoreboard_time", "TIME: " .. tostring(time_elapsed))
+    set_text("scoreboard_clean", "CLEANED: " .. tostring(cleaned) .. "%")
+    set_text("scoreboard_high", "BEST: " .. highscore_str)
+
+    if (self._last_logged_second or -1) ~= time_elapsed then
+        self._last_logged_second = time_elapsed
+        print("[hud] update time=" .. tostring(time_elapsed) .. " cleaned=" .. tostring(cleaned) .. " best=" .. highscore_str)
+    end
+
+    local show_popup = message.show_popup == true
+    gui.set_enabled(self.popup_panel, show_popup)
+    gui.set_enabled(self.popup_trim, show_popup)
+    gui.set_enabled(self.popup_text, show_popup)
+    gui.set_enabled(self.popup_hint, show_popup)
+
+    if show_popup and message.popup_text then
+        local popup_text = tostring(message.popup_text)
+        popup_text = string.gsub(popup_text, "\r\n", "\n")
+        popup_text = string.gsub(popup_text, "\n[Pp]ress Enter to play again", "")
+        gui.set_text(self.popup_text, popup_text)
+    end
+end

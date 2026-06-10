@@ -1,0 +1,312 @@
+local C = require("config.game_constants")
+local rink_builder = require("systems.rink_builder")
+local ice_quality_system = require("systems.ice_quality_system")
+local GAME_CONTROLLER_URL = "/game_controller#game_controller"
+
+local function color4(color)
+    return vmath.vector4(color[1], color[2], color[3], color[4])
+end
+
+local function v3(x, y)
+    return vmath.vector3(x, y, 0)
+end
+
+local function add_box(x, y, w, h, color)
+    local node = gui.new_box_node(v3(x, y), v3(w, h, 0))
+    gui.set_color(node, color)
+    return node
+end
+
+local function add_circle(x, y, diameter, color)
+    local node = gui.new_pie_node(v3(x, y), v3(diameter, diameter, 0))
+    gui.set_color(node, color)
+    return node
+end
+
+local function draw_rounded_rect(cx, cy, width, height, radius, color)
+    local nodes = {}
+    nodes[#nodes + 1] = add_box(cx, cy, width - (radius * 2), height, color)
+    nodes[#nodes + 1] = add_box(cx, cy, width, height - (radius * 2), color)
+
+    local half_w = width * 0.5
+    local half_h = height * 0.5
+
+    nodes[#nodes + 1] = add_circle(cx - half_w + radius, cy + half_h - radius, radius * 2, color)
+    nodes[#nodes + 1] = add_circle(cx + half_w - radius, cy + half_h - radius, radius * 2, color)
+    nodes[#nodes + 1] = add_circle(cx - half_w + radius, cy - half_h + radius, radius * 2, color)
+    nodes[#nodes + 1] = add_circle(cx + half_w - radius, cy - half_h + radius, radius * 2, color)
+
+    return nodes
+end
+
+local function update_overlay_visuals(self)
+    for _, tile in ipairs(self.overlay.tiles) do
+        gui.set_color(tile.node, ice_quality_system.get_tile_color(tile, C))
+    end
+end
+
+local function make_text_node(pos, size, text, color)
+    local node = gui.new_text_node(pos, text)
+    gui.set_size(node, size)
+    gui.set_color(node, color)
+    gui.set_pivot(node, gui.PIVOT_CENTER)
+    gui.set_font(node, "rink_font")
+    return node
+end
+
+local function create_scoreboard_ui(self)
+    local screen_w = gui.get_width()
+    local screen_h = gui.get_height()
+    local center_x = screen_w * 0.5
+    local panel_y = screen_h - 48
+
+    self.scoreboard = {}
+    self.scoreboard.panel = add_box(center_x, panel_y, 560, 70, vmath.vector4(0.05, 0.07, 0.11, 0.86))
+    self.scoreboard.top_trim = add_box(center_x, panel_y + 33, 560, 4, vmath.vector4(0.82, 0.12, 0.12, 0.98))
+    self.scoreboard.left_bar = add_box(center_x - 276, panel_y, 6, 70, vmath.vector4(0.82, 0.12, 0.12, 0.98))
+    self.scoreboard.right_bar = add_box(center_x + 276, panel_y, 6, 70, vmath.vector4(0.14, 0.38, 0.85, 0.98))
+
+    local text_color = vmath.vector4(0.96, 0.98, 1.0, 1.0)
+    local heading_color = vmath.vector4(0.76, 0.86, 1.0, 0.95)
+    self.scoreboard.heading = make_text_node(v3(center_x, panel_y + 20), v3(320, 20, 0), "ZAMBONI SIMULATOR", heading_color)
+    self.scoreboard.time = make_text_node(v3(center_x - 170, panel_y - 4), v3(170, 24, 0), "TIME: 60", text_color)
+    self.scoreboard.cleaned = make_text_node(v3(center_x, panel_y - 4), v3(190, 24, 0), "CLEANED: 0%", text_color)
+    self.scoreboard.high = make_text_node(v3(center_x + 170, panel_y - 4), v3(170, 24, 0), "BEST: --", text_color)
+
+    self.scoreboard.popup_panel = add_box(center_x, screen_h * 0.5, 560, 190, vmath.vector4(0.04, 0.06, 0.10, 0.90))
+    self.scoreboard.popup_trim = add_box(center_x, (screen_h * 0.5) + 93, 560, 4, vmath.vector4(0.82, 0.12, 0.12, 0.95))
+    self.scoreboard.popup_text = make_text_node(v3(center_x, (screen_h * 0.5) + 8), v3(500, 90, 0), "", text_color)
+    self.scoreboard.popup_hint = make_text_node(v3(center_x, (screen_h * 0.5) - 56), v3(460, 28, 0), "Press Enter to start a new game", vmath.vector4(0.76, 0.83, 0.94, 0.95))
+
+    gui.set_enabled(self.scoreboard.popup_panel, false)
+    gui.set_enabled(self.scoreboard.popup_trim, false)
+    gui.set_enabled(self.scoreboard.popup_text, false)
+    gui.set_enabled(self.scoreboard.popup_hint, false)
+
+    print("[rink_gui] fallback scoreboard created")
+end
+
+local function apply_hud_update(self, message)
+    if not self.scoreboard then
+        return
+    end
+
+    local time_elapsed = math.max(0, math.floor((message.time_left or 0) + 0.5))
+    local cleaned = math.max(0, math.floor((message.clean_percent or 0) + 0.5))
+    local highscore_str = tostring(message.highscore or "--")
+
+    gui.set_text(self.scoreboard.time, "TIME: " .. tostring(time_elapsed))
+    gui.set_text(self.scoreboard.cleaned, "CLEANED: " .. tostring(cleaned) .. "%")
+    gui.set_text(self.scoreboard.high, "BEST: " .. highscore_str)
+
+    local show_popup = message.show_popup == true
+    gui.set_enabled(self.scoreboard.popup_panel, show_popup)
+    gui.set_enabled(self.scoreboard.popup_trim, show_popup)
+    gui.set_enabled(self.scoreboard.popup_text, show_popup)
+    gui.set_enabled(self.scoreboard.popup_hint, show_popup)
+
+    if show_popup and message.popup_text then
+        local popup_text = tostring(message.popup_text)
+        popup_text = string.gsub(popup_text, "\r\n", "\n")
+        popup_text = string.gsub(popup_text, "\n[Pp]ress Enter to play again", "")
+        gui.set_text(self.scoreboard.popup_text, popup_text)
+    end
+end
+
+local function send_progress(self, force)
+    local percent = ice_quality_system.get_clean_percent(self.overlay.tiles, C)
+    local dirty = ice_quality_system.count_dirty_tiles(self.overlay.tiles, C)
+    local rounded_percent = math.floor(percent + 0.5)
+
+    if not force and self.last_percent_sent == rounded_percent and self.last_dirty_sent == dirty then
+        return
+    end
+
+    self.last_percent_sent = rounded_percent
+    self.last_dirty_sent = dirty
+
+    msg.post(GAME_CONTROLLER_URL, "rink_progress", {
+        clean_percent = percent,
+        dirty_tiles = dirty,
+    })
+end
+
+local function reset_tiles_dirty(self)
+    for _, tile in ipairs(self.overlay.tiles) do
+        ice_quality_system.set_tile_quality(tile, 0, C)
+    end
+    update_overlay_visuals(self)
+    send_progress(self, true)
+end
+
+local function build_dirty_overlay(self, constants)
+    local tiles = ice_quality_system.create_grid(constants)
+    local gap = constants.ice_grid.tile_gap or 0
+
+    for _, tile in ipairs(tiles) do
+        tile.tint = 1.0
+    end
+
+    for _, tile in ipairs(tiles) do
+        local size = vmath.vector3(tile.width - gap, tile.height - gap, 0)
+        local node = gui.new_box_node(vmath.vector3(tile.x, tile.y, 0), size)
+        tile.node = node
+    end
+
+    self.overlay = {
+        tiles = tiles,
+    }
+
+    update_overlay_visuals(self)
+
+    print("[rink_gui] dirty overlay tiles: " .. tostring(#tiles))
+end
+
+local function run_rear_blade_cleaning(self)
+    if not self.zamboni_pose then
+        return
+    end
+
+    local zamboni_pos = self.zamboni_pose.position
+    local zamboni_rot = self.zamboni_pose.rotation
+    local cleaned_count, blade_center = ice_quality_system.clean_tiles_with_blade(self.overlay.tiles, zamboni_pos, zamboni_rot, C)
+    self.debug_blade_center = blade_center
+    self.debug_cleaned_since_log = (self.debug_cleaned_since_log or 0) + cleaned_count
+
+    if cleaned_count > 0 then
+        update_overlay_visuals(self)
+        send_progress(self, false)
+    end
+end
+
+local function print_debug_progress(self, dt)
+    self.debug_print_timer = (self.debug_print_timer or 0) + dt
+    if self.debug_print_timer < 1.0 then
+        return
+    end
+
+    self.debug_print_timer = 0
+    local dirty = ice_quality_system.count_dirty_tiles(self.overlay.tiles, C)
+    local clean_percent = ice_quality_system.get_clean_percent(self.overlay.tiles, C)
+
+    local blade_x = 0
+    local blade_y = 0
+    if self.debug_blade_center then
+        blade_x = self.debug_blade_center.x
+        blade_y = self.debug_blade_center.y
+    end
+
+    local cleaned_this_second = self.debug_cleaned_since_log or 0
+    self.debug_cleaned_since_log = 0
+
+    print(
+        "[ice_quality] dirty_tiles=" .. tostring(dirty)
+            .. " clean_percent=" .. string.format("%.1f", clean_percent)
+            .. " cleaned_recent=" .. tostring(cleaned_this_second)
+            .. " blade=(" .. string.format("%.1f", blade_x) .. "," .. string.format("%.1f", blade_y) .. ")"
+    )
+end
+
+local function create_welcome_ui(self)
+    local screen_w = gui.get_width()
+    local screen_h = gui.get_height()
+    local cx = screen_w * 0.5
+    local cy = screen_h * 0.5
+
+    self.welcome = {}
+    self.welcome.panel = add_box(cx, cy, 660, 400, vmath.vector4(0.04, 0.06, 0.10, 0.94))
+    self.welcome.trim_top = add_box(cx, cy + 198, 660, 5, vmath.vector4(0.82, 0.12, 0.12, 1.0))
+    self.welcome.trim_bottom = add_box(cx, cy - 198, 660, 5, vmath.vector4(0.14, 0.38, 0.85, 1.0))
+
+    local body_color = vmath.vector4(0.82, 0.88, 0.98, 0.95)
+
+    self.welcome.body = make_text_node(
+        v3(cx, cy + 40), v3(580, 300, 0),
+        "", body_color
+    )
+    gui.set_line_break(self.welcome.body, true)
+
+    self.welcome.hint = make_text_node(
+        v3(cx, cy - 148), v3(560, 28, 0),
+        "Press Enter to begin!", vmath.vector4(0.96, 0.96, 0.6, 1.0)
+    )
+
+    gui.set_enabled(self.welcome.panel, false)
+    gui.set_enabled(self.welcome.trim_top, false)
+    gui.set_enabled(self.welcome.trim_bottom, false)
+    gui.set_enabled(self.welcome.body, false)
+    gui.set_enabled(self.welcome.hint, false)
+end
+
+local function show_welcome(self, text)
+    if not self.welcome then return end
+    gui.set_text(self.welcome.body, text or "")
+    gui.set_enabled(self.welcome.panel, true)
+    gui.set_enabled(self.welcome.trim_top, true)
+    gui.set_enabled(self.welcome.trim_bottom, true)
+    gui.set_enabled(self.welcome.body, true)
+    gui.set_enabled(self.welcome.hint, true)
+end
+
+local function hide_welcome(self)
+    if not self.welcome then return end
+    gui.set_enabled(self.welcome.panel, false)
+    gui.set_enabled(self.welcome.trim_top, false)
+    gui.set_enabled(self.welcome.trim_bottom, false)
+    gui.set_enabled(self.welcome.body, false)
+    gui.set_enabled(self.welcome.hint, false)
+end
+
+function init(self)
+    rink_builder.build(C)
+    build_dirty_overlay(self, C)
+    create_scoreboard_ui(self)
+    create_welcome_ui(self)
+    self.zamboni_pose = nil
+    self.round_active = false
+    self.last_percent_sent = nil
+    self.last_dirty_sent = nil
+    send_progress(self, true)
+end
+
+function update(self, dt)
+    if self.round_active then
+        run_rear_blade_cleaning(self)
+    end
+    print_debug_progress(self, dt)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show_welcome") then
+        show_welcome(self, message.text)
+        return
+    end
+
+    if message_id == hash("hide_welcome") then
+        hide_welcome(self)
+        return
+    end
+
+    if message_id == hash("hud_update") then
+        apply_hud_update(self, message)
+        return
+    end
+
+    if message_id == hash("zamboni_pose") and message.position and message.rotation then
+        self.zamboni_pose = {
+            position = message.position,
+            rotation = message.rotation,
+        }
+        return
+    end
+
+    if message_id == hash("set_round_active") and message.active ~= nil then
+        self.round_active = message.active
+        return
+    end
+
+    if message_id == hash("start_new_game") then
+        self.round_active = true
+        reset_tiles_dirty(self)
+    end
+end

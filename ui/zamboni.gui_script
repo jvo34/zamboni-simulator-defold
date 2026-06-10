@@ -1,0 +1,60 @@
+local NODE_IDS = {
+    "zamboni_body",
+    "zamboni_cab",
+    "zamboni_resurfacer",
+    "wheel_front_top",
+    "wheel_front_bottom",
+    "wheel_rear_top",
+    "wheel_rear_bottom",
+    "caution_light",
+    "water_tank",
+    "cab_window",
+    "front_bumper",
+}
+
+local ZAMBONI_GO_URL = "/zamboni"
+
+function init(self)
+    self.base_nodes = {}
+    self.base_center = gui.get_position(gui.get_node("zamboni_body"))
+
+    for _, id in ipairs(NODE_IDS) do
+        local node = gui.get_node(id)
+        local pos = gui.get_position(node)
+        self.base_nodes[#self.base_nodes + 1] = {
+            node = node,
+            offset = pos - self.base_center,
+            rotation = gui.get_rotation(node),
+        }
+    end
+end
+
+local function apply_pose(self, world_pos, world_rot)
+    for _, entry in ipairs(self.base_nodes) do
+        local rotated = vmath.rotate(world_rot, entry.offset)
+        gui.set_position(entry.node, vmath.vector3(world_pos.x + rotated.x, world_pos.y + rotated.y, 0))
+        gui.set_rotation(entry.node, world_rot * entry.rotation)
+    end
+end
+
+function update(self, dt)
+    local ok_pos, world_pos = pcall(go.get_position, ZAMBONI_GO_URL)
+    local ok_rot, world_rot = pcall(go.get_rotation, ZAMBONI_GO_URL)
+    if ok_pos and ok_rot then
+        apply_pose(self, world_pos, world_rot)
+    end
+end
+
+local function set_visible(self, visible)
+    for _, entry in ipairs(self.base_nodes) do
+        gui.set_enabled(entry.node, visible)
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("zamboni_pose") and message.position and message.rotation then
+        apply_pose(self, message.position, message.rotation)
+    elseif message_id == hash("set_visible") then
+        set_visible(self, message.visible ~= false)
+    end
+end

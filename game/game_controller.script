@@ -1,0 +1,145 @@
+local HUD_GUI_URL = "/hud_ui#hud_gui"
+local RINK_GUI_URL = "/rink_ui#rink_gui"
+local ZAMBONI_CONTROLLER_URL = "/zamboni#zamboni_controller"
+local ZAMBONI_GUI_URL = "/zamboni_ui#zamboni_gui"
+
+local HIGHSCORE_SAVE_PATH = "zamboni_scoreboard"
+
+local function load_highscore()
+    local data = sys.load(HIGHSCORE_SAVE_PATH)
+    if data and type(data.best_time) == "number" then
+        return data.best_time
+    end
+    return nil
+end
+
+local function save_highscore(value)
+    sys.save(HIGHSCORE_SAVE_PATH, { best_time = value })
+end
+
+local function broadcast_round_active(is_active)
+    msg.post(RINK_GUI_URL, "set_round_active", { active = is_active })
+    msg.post(ZAMBONI_CONTROLLER_URL, "set_round_active", { active = is_active })
+end
+
+local function send_hud_state(self, popup_text)
+    local best_str = self.best_time and (tostring(self.best_time) .. "s") or "--"
+    local payload = {
+        time_left = math.floor((self.time_elapsed or 0) + 0.5),
+        clean_percent = self.clean_percent,
+        highscore = best_str,
+        show_popup = popup_text ~= nil,
+        popup_text = popup_text,
+    }
+
+    msg.post(HUD_GUI_URL, "hud_update", payload)
+    msg.post(RINK_GUI_URL, "hud_update", payload)
+end
+
+local function start_round(self)
+    self.time_elapsed = 0
+    self.clean_percent = 0
+    self.round_active = true
+    self.popup_text = nil
+
+    msg.post(RINK_GUI_URL, "start_new_game")
+    msg.post(ZAMBONI_CONTROLLER_URL, "start_new_game")
+    msg.post(ZAMBONI_GUI_URL, "set_visible", { visible = true })
+    broadcast_round_active(true)
+    send_hud_state(self, nil)
+end
+
+local function end_round(self, popup_text)
+    self.round_active = false
+    self.popup_text = popup_text
+    broadcast_round_active(false)
+    msg.post(ZAMBONI_GUI_URL, "set_visible", { visible = false })
+    send_hud_state(self, popup_text)
+end
+
+local WELCOME_TEXT = [[Welcome to Zamboni Simulator!
+
+Drive the Zamboni and clean every inch of the ice.
+See how fast you can resurface the whole rink!
+
+Controls:
+  W or Up Arrow    - Drive forward
+  S or Down Arrow  - Drive backward
+  A or Left Arrow  - Turn left
+  D or Right Arrow - Turn right
+  R                - Respawn to center
+  Enter            - Start / Restart]]
+
+local function show_welcome(self)
+    self.waiting_for_start = true
+    self.round_active = false
+    broadcast_round_active(false)
+    msg.post(RINK_GUI_URL, "show_welcome", { text = WELCOME_TEXT })
+    msg.post(ZAMBONI_GUI_URL, "set_visible", { visible = false })
+    local best_str = self.best_time and (tostring(self.best_time) .. "s") or "--"
+    msg.post(HUD_GUI_URL, "hud_update", {
+        time_left = 0, clean_percent = 0, highscore = best_str,
+        show_popup = false, popup_text = nil,
+    })
+end
+
+function init(self)
+    msg.post(".", "acquire_input_focus")
+
+    self.best_time = load_highscore()
+    self.time_elapsed = 0
+    self.clean_percent = 0
+    self.round_active = false
+    self.waiting_for_start = false
+    self.popup_text = nil
+
+    show_welcome(self)
+end
+
+function update(self, dt)
+    if not self.round_active then
+        return
+    end
+
+    self.time_elapsed = self.time_elapsed + dt
+
+    send_hud_state(self, nil)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("rink_progress") then
+        self.clean_percent = math.max(0, math.min(message.clean_percent or 0, 100))
+
+        if self.round_active and self.clean_percent >= 100 then
+            local finish_time = math.floor(self.time_elapsed + 0.5)
+            local popup
+            if self.best_time == nil or finish_time < self.best_time then
+                self.best_time = finish_time
+                save_highscore(self.best_time)
+                popup = "Rink clean! Time: " .. finish_time .. "s  NEW BEST!"
+            else
+                popup = "Rink clean! Time: " .. finish_time .. "s  (Best: " .. self.best_time .. "s)"
+            end
+            end_round(self, popup)
+            return
+        end
+
+        send_hud_state(self, self.popup_text)
+    end
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("restart_round") and action.pressed then
+        if self.waiting_for_start then
+            self.waiting_for_start = false
+            msg.post(RINK_GUI_URL, "hide_welcome")
+            start_round(self)
+        elseif not self.round_active then
+            start_round(self)
+        end
+    end
+
+    if action_id == hash("respawn") and action.pressed and self.round_active then
+        msg.post(ZAMBONI_CONTROLLER_URL, "respawn")
+    end
+end

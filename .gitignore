@@ -1,0 +1,9 @@
+# Defold build/runtime artifacts
+build/
+.internal/
+
+# Local runtime save data
+zamboni_scoreboard
+
+# OS/editor noise
+.DS_Store

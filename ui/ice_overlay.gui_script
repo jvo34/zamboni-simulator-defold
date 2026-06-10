@@ -1,0 +1,32 @@
+local C = require("config.game_constants")
+local ice_quality_system = require("systems.ice_quality_system")
+
+local function color4(color)
+    return vmath.vector4(color[1], color[2], color[3], color[4])
+end
+
+function init(self)
+    self.tiles = ice_quality_system.create_grid(C)
+
+    local base = gui.get_node("dirty_base")
+    gui.move_above(base, nil)
+
+    local gap = C.ice_grid.tile_gap or 0
+    local dirty = color4(C.ice_grid.dirty_color)
+
+    for _, tile in ipairs(self.tiles) do
+        local size = vmath.vector3(tile.width - gap, tile.height - gap, 0)
+        local node = gui.new_box_node(vmath.vector3(tile.x, tile.y, 0), size)
+
+        local tint = 1.0
+        if ((tile.row + tile.col) % 2) == 0 then
+            tint = 0.88
+        end
+
+        gui.set_color(node, vmath.vector4(dirty.x * tint, dirty.y * tint, dirty.z * tint, dirty.w))
+        gui.move_above(node, base)
+        tile.node = node
+    end
+
+    print("[ice_overlay] created tiles: " .. tostring(#self.tiles))
+end
